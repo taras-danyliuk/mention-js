@@ -1,5 +1,5 @@
 (function() {
-    const go = ["channel", "here", "everyone"];
+    const go = ["channel", "here", "everyone", "aaaaaa", "abbbbb", "acccc"];
     const preventKeys = [13, 38, 40];
     let isInSearch = false;
     let currentResults = [];
@@ -20,15 +20,17 @@
         if(isInSearch && preventKeys.includes(event.which)) return;
 
         const textBeforeCaret = getCaretCharacterOffsetWithin(targetDOM);
-        console.log(textBeforeCaret, 'textBeforeCaret');
-        const index = textBeforeCaret.search(/@/g);
+        const reversed = textBeforeCaret.split('').reverse().join('');
+        // console.log(textBeforeCaret, 'textBeforeCaret');
+        const index = reversed.search(/@/g);
+        // console.log(reversed, index);
         if(index !== -1) {
-            const query = textBeforeCaret.substr(index);
+            const query = reversed.substring(0, index).split('').reverse().join('');
+            console.log(query);
             if(query.search(/\s/g) === -1) {
                 // DO search
                 isInSearch = true;
-                const search = query.substr(1);
-                const display = go.filter(item => item.indexOf(search.toLowerCase()) === 0);
+                const display = go.filter(item => item.indexOf(query.toLowerCase()) === 0);
 
                 displayResults(display);
             }
@@ -38,6 +40,8 @@
     }
 
     function onKeyDown(event) {
+        if(event.which === 8) deleteMention(event);
+
         if(isInSearch && preventKeys.includes(event.which)) {
             event.preventDefault();
             switch(event.which) {
@@ -51,6 +55,65 @@
                     submitSelection();
                     break;
             }
+        }
+    }
+
+    function deleteMention(event) {
+        console.log("deleteMention");
+
+        const doc = targetDOM.ownerDocument || targetDOM.document;
+        const win = doc.defaultView || doc.parentWindow;
+        let sel;
+        if (typeof win.getSelection !== "undefined") {
+            sel = win.getSelection();
+            if (sel.rangeCount > 0) {
+                let range = win.getSelection().getRangeAt(0);
+                console.log(range.endContainer.parentNode, 'delete');
+                if(range.endContainer.parentNode.classList.contains("mention-tagged-item")) {
+                    event.preventDefault();
+
+                    const text = range.endContainer.nodeValue;
+                    const cursor = range.endOffset;
+                    console.log(text.substring(0, cursor - 1) + text.substring(cursor));
+
+                    range = range.cloneRange();
+                    range.selectNode(range.endContainer.parentNode);
+                    range.deleteContents();
+
+                    const frag = document.createDocumentFragment();
+                    const el = document.createElement("div");
+                    el.innerHTML = ` ${text.substring(0, cursor - 1)}${text.substring(cursor)}`;
+                    const lastNode = frag.appendChild(el.firstChild);
+
+                    range.insertNode(frag);
+
+                    // Preserve the selection
+                    range.setStart(lastNode, cursor);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+
+                    sel.addRange(range);
+                }
+
+                // preCaretRange.selectNodeContents(element);
+                //
+                // console.log(preCaretRange, "preCaretRange");
+                // let offset = range.endOffset;
+                // if(testInMention(range.endContainer)) offset = range.endContainer.length;
+                // else if(range.endContainer.nodeValue && testString(range.endContainer.nodeValue.substring(0, range.endOffset))) {
+                //     const spaceIndex = getSpaceIndex(range.endContainer.nodeValue);
+                //     if(spaceIndex !== -1 && range.endOffset < spaceIndex) offset = spaceIndex;
+                // }
+                //
+                // preCaretRange.setEnd(range.endContainer, offset);
+                // caretOffset = preCaretRange.toString();
+            }
+        } else if ( (sel = doc.selection) && sel.type !== "Control") {
+            // const textRange = sel.createRange();
+            // const preCaretTextRange = doc.body.createTextRange();
+            // preCaretTextRange.moveToElementText(element);
+            // preCaretTextRange.setEndPoint("EndToEnd", textRange);
+            // caretOffset = preCaretTextRange.text;
         }
     }
 
@@ -90,38 +153,58 @@
             sel = window.getSelection();
             if (sel.getRangeAt && sel.rangeCount) {
                 range = sel.getRangeAt(0);
-                range.deleteContents();
 
-                // Range.createContextualFragment() would be useful here but is
-                // non-standard and not supported in all browsers (IE9, for one)
-                const dogIndex = getDogPostion(range.startContainer.nodeValue, range.startOffset);
-                let spaceIndex = getSpaceIndex(range.startContainer.nodeValue.substr(dogIndex - 1));
-                if(spaceIndex !== -1) spaceIndex +=dogIndex;
-                else spaceIndex = range.endOffset;
+                if(range.endContainer.parentNode.classList.contains('mention-tagged-item')) {
+                    let index = 0;
+                    targetDOM.childNodes.forEach((node, i) => {
+                        if(node === range.endContainer.parentNode) {
+                            console.log('found', i);
+                            index = i;
+                        }
+                    });
 
-                console.log(dogIndex, 'dogIndex');
-                console.log(spaceIndex, 'spaceIndex');
-                const offset = range.startContainer.nodeValue.length - range.startContainer.nodeValue.indexOf("@");
-                range.setStart(range.startContainer, range.startOffset - dogIndex);
-                range.setEnd(range.endContainer, spaceIndex);
-                range.deleteContents();
 
-                const frag = document.createDocumentFragment();
-                frag.appendChild(html);
+                    range = range.cloneRange();
+                    // range.setStartAfter(range.endContainer.parentNode);
+                    range.collapse(true);
+                    range.setStart(targetDOM.childNodes[index +1], 1);
+                    sel.removeAllRanges();
 
-                const el = document.createElement("div");
-                el.innerHTML = "&nbsp;";
-                const lastNode = frag.appendChild(el.firstChild);
+                    sel.addRange(range);
+                }
+                else {
+                    range.deleteContents();
+                    // Range.createContextualFragment() would be useful here but is
+                    // non-standard and not supported in all browsers (IE9, for one)
+                    const dogIndex = getDogPostion(range.startContainer.nodeValue, range.startOffset);
+                    let spaceIndex = getSpaceIndex(range.startContainer.nodeValue.substr(dogIndex - 1));
+                    if(spaceIndex !== -1) spaceIndex +=dogIndex;
+                    else spaceIndex = range.endOffset;
 
-                range.insertNode(frag);
+                    console.log(dogIndex, 'dogIndex');
+                    console.log(spaceIndex, 'spaceIndex');
+                    const offset = range.startContainer.nodeValue.length - range.startContainer.nodeValue.indexOf("@");
+                    range.setStart(range.startContainer, range.startOffset - dogIndex);
+                    range.setEnd(range.endContainer, spaceIndex);
+                    range.deleteContents();
 
-                // Preserve the selection
-                range = range.cloneRange();
-                range.setStartAfter(lastNode);
-                range.collapse(true);
-                sel.removeAllRanges();
+                    const frag = document.createDocumentFragment();
+                    frag.appendChild(html);
 
-                sel.addRange(range);
+                    const el = document.createElement("div");
+                    el.innerHTML = "&nbsp;";
+                    const lastNode = frag.appendChild(el.firstChild);
+
+                    range.insertNode(frag);
+
+                    // Preserve the selection
+                    range = range.cloneRange();
+                    range.setStartAfter(lastNode);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+
+                    sel.addRange(range);
+                }
             }
         }
     }
@@ -172,8 +255,11 @@
                 preCaretRange.selectNodeContents(element);
 
                 let offset = range.endOffset;
-                const spaceIndex = getSpaceIndex(range.endContainer.nodeValue.substring(0, range.endOffset));
-                if(spaceIndex !== -1 && range.endOffset < spaceIndex) offset = spaceIndex;
+                if(testInMention(range.endContainer)) offset = range.endContainer.length;
+                else if(range.endContainer.nodeValue && testString(range.endContainer.nodeValue.substring(0, range.endOffset))) {
+                    const spaceIndex = getSpaceIndex(range.endContainer.nodeValue);
+                    if(spaceIndex !== -1 && range.endOffset < spaceIndex) offset = spaceIndex;
+                }
 
                 preCaretRange.setEnd(range.endContainer, offset);
                 caretOffset = preCaretRange.toString();
@@ -186,6 +272,18 @@
             caretOffset = preCaretTextRange.text;
         }
         return caretOffset;
+    }
+
+    function testInMention(container) {
+        return (container && container.parentNode && container.parentNode.classList.contains("mention-tagged-item"))
+    }
+
+    function testString(string) {
+        string = string.split('').reverse().join('');
+        const dogIndex = string.search(/@/);
+        const spaceIndex = string.search(/\s/);
+
+        return dogIndex !== -1 && dogIndex < spaceIndex;
     }
 
     function wrap(el, wrapper, options = {}) {
