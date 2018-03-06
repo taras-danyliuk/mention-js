@@ -16,25 +16,17 @@
     targetDOM.addEventListener("keyup", onKeyUp);
     targetDOM.addEventListener("keydown", onKeyDown);
 
+
+    // Event functions
     function onKeyUp(event) {
         if(isInSearch && preventKeys.includes(event.which)) return;
 
-        const textBeforeCaret = getCaretCharacterOffsetWithin(targetDOM);
-        const reversed = textBeforeCaret.split('').reverse().join('');
-        // console.log(textBeforeCaret, 'textBeforeCaret');
-        const index = reversed.search(/@/g);
-        // console.log(reversed, index);
-        if(index !== -1) {
-            const query = reversed.substring(0, index).split('').reverse().join('');
-            console.log(query);
-            if(query.search(/\s/g) === -1) {
-                // DO search
-                isInSearch = true;
-                const display = go.filter(item => item.indexOf(query.toLowerCase()) === 0);
+        const searchQuery = getSearchQueary(targetDOM);
+        if(typeof searchQuery === "string") {
+            isInSearch = true;
+            const display = go.filter(item => item.indexOf(searchQuery.toLowerCase()) === 0);
 
-                displayResults(display);
-            }
-            else hideResults();
+            displayResults(display);
         }
         else hideResults();
     }
@@ -58,9 +50,8 @@
         }
     }
 
+    
     function deleteMention(event) {
-        console.log("deleteMention");
-
         const doc = targetDOM.ownerDocument || targetDOM.document;
         const win = doc.defaultView || doc.parentWindow;
         let sel;
@@ -68,13 +59,11 @@
             sel = win.getSelection();
             if (sel.rangeCount > 0) {
                 let range = win.getSelection().getRangeAt(0);
-                console.log(range.endContainer.parentNode, 'delete');
-                if(range.endContainer.parentNode.classList.contains("mention-tagged-item")) {
+                if (range.endContainer.parentNode.classList.contains("mention-tagged-item")) {
                     event.preventDefault();
 
                     const text = range.endContainer.nodeValue;
                     const cursor = range.endOffset;
-                    console.log(text.substring(0, cursor - 1) + text.substring(cursor));
 
                     range = range.cloneRange();
                     range.selectNode(range.endContainer.parentNode);
@@ -94,26 +83,7 @@
 
                     sel.addRange(range);
                 }
-
-                // preCaretRange.selectNodeContents(element);
-                //
-                // console.log(preCaretRange, "preCaretRange");
-                // let offset = range.endOffset;
-                // if(testInMention(range.endContainer)) offset = range.endContainer.length;
-                // else if(range.endContainer.nodeValue && testString(range.endContainer.nodeValue.substring(0, range.endOffset))) {
-                //     const spaceIndex = getSpaceIndex(range.endContainer.nodeValue);
-                //     if(spaceIndex !== -1 && range.endOffset < spaceIndex) offset = spaceIndex;
-                // }
-                //
-                // preCaretRange.setEnd(range.endContainer, offset);
-                // caretOffset = preCaretRange.toString();
             }
-        } else if ( (sel = doc.selection) && sel.type !== "Control") {
-            // const textRange = sel.createRange();
-            // const preCaretTextRange = doc.body.createTextRange();
-            // preCaretTextRange.moveToElementText(element);
-            // preCaretTextRange.setEndPoint("EndToEnd", textRange);
-            // caretOffset = preCaretTextRange.text;
         }
     }
 
@@ -136,17 +106,53 @@
         span.classList.add("mention-tagged-item");
         span.innerHTML = "@" + currentSelected;
 
-        pasteHtmlAtCaret(span);
+        pasteMention(span);
         hideResults();
     }
 
-    function getDogPostion(string, currentPos) {
-        const part = string.substring(0, currentPos);
-        const reversedPart = part.split('').reverse().join('');
-        return reversedPart.search(/@/g) + 1;
+
+    // Show/hide results
+    function displayResults(results) {
+        popup.innerHTML = "";
+        if(results.length > 0) {
+            currentIndex = 0;
+            currentResults = results;
+            results.forEach((item, index) => {
+                const pEl = document.createElement("p");
+                pEl.classList.add("mention-result-row");
+                if(index === 0) pEl.classList.add("mention-focused");
+                pEl.innerHTML = item;
+
+                popup.appendChild(pEl);
+            });
+        }
     }
 
-    function pasteHtmlAtCaret(html) {
+    function hideResults() {
+        isInSearch = false;
+        popup.innerHTML = ""
+    }
+
+
+    // String helpers
+    function testInMention(container) {
+        return (container && container.parentNode && container.parentNode.classList.contains("mention-tagged-item"))
+    }
+
+    function getDogPosition(string, currentPos) {
+        const part = string.substring(0, currentPos);
+        return part.lastIndexOf("@");
+    }
+
+    function getSpaceIndex(string) {
+        const spaceIndex = string.search(/[\s\t\n\r]/);
+        if(spaceIndex !== -1) return spaceIndex;
+        return string.length;
+    }
+
+
+    // Selection functions
+    function pasteMention(html) {
         var sel, range;
         if (window.getSelection) {
             // IE9 and non-IE
@@ -157,15 +163,10 @@
                 if(range.endContainer.parentNode.classList.contains('mention-tagged-item')) {
                     let index = 0;
                     targetDOM.childNodes.forEach((node, i) => {
-                        if(node === range.endContainer.parentNode) {
-                            console.log('found', i);
-                            index = i;
-                        }
+                        if(node === range.endContainer.parentNode) index = i;
                     });
 
-
                     range = range.cloneRange();
-                    // range.setStartAfter(range.endContainer.parentNode);
                     range.collapse(true);
                     range.setStart(targetDOM.childNodes[index +1], 1);
                     sel.removeAllRanges();
@@ -176,15 +177,11 @@
                     range.deleteContents();
                     // Range.createContextualFragment() would be useful here but is
                     // non-standard and not supported in all browsers (IE9, for one)
-                    const dogIndex = getDogPostion(range.startContainer.nodeValue, range.startOffset);
-                    let spaceIndex = getSpaceIndex(range.startContainer.nodeValue.substr(dogIndex - 1));
+                    const dogIndex = getDogPosition(range.startContainer.nodeValue, range.startOffset);
+                    let spaceIndex = getSpaceIndex(range.startContainer.nodeValue.substr(dogIndex));
                     if(spaceIndex !== -1) spaceIndex +=dogIndex;
-                    else spaceIndex = range.endOffset;
 
-                    console.log(dogIndex, 'dogIndex');
-                    console.log(spaceIndex, 'spaceIndex');
-                    const offset = range.startContainer.nodeValue.length - range.startContainer.nodeValue.indexOf("@");
-                    range.setStart(range.startContainer, range.startOffset - dogIndex);
+                    range.setStart(range.startContainer,dogIndex);
                     range.setEnd(range.endContainer, spaceIndex);
                     range.deleteContents();
 
@@ -209,40 +206,7 @@
         }
     }
 
-    function displayResults(results) {
-        popup.innerHTML = "";
-        if(results.length > 0) {
-            currentIndex = 0;
-            currentResults = results;
-            results.forEach((item, index) => {
-                const pEl = document.createElement("p");
-                pEl.classList.add("mention-result-row");
-                if(index === 0) pEl.classList.add("mention-focused");
-                pEl.innerHTML = item;
-
-                popup.appendChild(pEl);
-            });
-        }
-    }
-
-    function hideResults() {
-        isInSearch = false;
-        popup.innerHTML = ""
-    }
-
-    function getSpaceIndex(string) {
-        if(!string) return -1;
-
-        const index = string.search(/@/);
-        if(index === -1) return -1;
-
-        const spaceIndex =  string.substr(index).search(/\s/);
-        if(spaceIndex !== -1) return index + spaceIndex;
-
-        return -1;
-    }
-
-    function getCaretCharacterOffsetWithin(element) {
+    function getSearchQueary(element) {
         let caretOffset = 0;
         const doc = element.ownerDocument || element.document;
         const win = doc.defaultView || doc.parentWindow;
@@ -251,41 +215,41 @@
             sel = win.getSelection();
             if (sel.rangeCount > 0) {
                 const range = win.getSelection().getRangeAt(0);
+                if (!range.endContainer.nodeValue) return;
                 const preCaretRange = range.cloneRange();
                 preCaretRange.selectNodeContents(element);
 
+                const wholeText = preCaretRange.toString();
+                preCaretRange.setEnd(range.endContainer, range.endOffset);
+                const textBeforeCursor = preCaretRange.toString();
+                const textAfterCursor = wholeText.substring(textBeforeCursor.length);
+
+                const dogIndex = textBeforeCursor.lastIndexOf("@");
+                if (dogIndex === -1) return;
+                if (textBeforeCursor.substring(dogIndex).search(/\s/) !== -1) return;
+
                 let offset = range.endOffset;
-                if(testInMention(range.endContainer)) offset = range.endContainer.length;
-                else if(range.endContainer.nodeValue && testString(range.endContainer.nodeValue.substring(0, range.endOffset))) {
-                    const spaceIndex = getSpaceIndex(range.endContainer.nodeValue);
-                    if(spaceIndex !== -1 && range.endOffset < spaceIndex) offset = spaceIndex;
+
+                if (testInMention(range.endContainer)) offset = range.endContainer.length;
+                else if (textAfterCursor.length) {
+                    const spaceIndex = textAfterCursor.search(/[\s\t\n\r]/);
+                    if (spaceIndex !== -1) offset = textBeforeCursor.length + spaceIndex;
+                    else offset = textBeforeCursor.length + textAfterCursor.length;
+
+                    const modifierIndex = textBeforeCursor.indexOf(range.endContainer.nodeValue.substring(0, range.endOffset));
+                    if(modifierIndex !== -1) offset = offset - modifierIndex;
                 }
 
                 preCaretRange.setEnd(range.endContainer, offset);
                 caretOffset = preCaretRange.toString();
+
+                const index = caretOffset.lastIndexOf("@");
+                if (index !== -1) return caretOffset.substring(index + 1);
             }
-        } else if ( (sel = doc.selection) && sel.type !== "Control") {
-            const textRange = sel.createRange();
-            const preCaretTextRange = doc.body.createTextRange();
-            preCaretTextRange.moveToElementText(element);
-            preCaretTextRange.setEndPoint("EndToEnd", textRange);
-            caretOffset = preCaretTextRange.text;
         }
-        return caretOffset;
     }
 
-    function testInMention(container) {
-        return (container && container.parentNode && container.parentNode.classList.contains("mention-tagged-item"))
-    }
-
-    function testString(string) {
-        string = string.split('').reverse().join('');
-        const dogIndex = string.search(/@/);
-        const spaceIndex = string.search(/\s/);
-
-        return dogIndex !== -1 && dogIndex < spaceIndex;
-    }
-
+    // Wrap initial element with relative element
     function wrap(el, wrapper, options = {}) {
         if(options.classes && options.classes.length) options.classes.forEach(c => wrapper.classList.add(c));
         if(options.id) wrapper.id = options.id;
