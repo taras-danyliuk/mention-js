@@ -9,19 +9,41 @@
             position: relative;
         }
         .mention-result-row {
-            background-color: #eee;
+            margin: 0;
         }
         .mention-focused {
             background-color: white;
             color: pink;
         }
         .mention-tagged-item {
-            background: lightpink;
+            background: rosybrown;
+        }
+
+
+        .wrapper {
+            border: 1px solid grey;
+            padding: 5px;
+        }
+        .tagged-item {
+            background: #fae5ab;
+        }
+        .popup-item {
+            background-color: lightblue;
+        }
+        .popup-row {
+            padding: 5px 10px;
+            font-size: 18px;
+            color: green;
+            margin: 5px 0;
+        }
+        .popup-row-focused {
+            background-color: rgba(255,255,255,.6)
         }
     </style>
 </head>
 <body>
 
+<h4>Type your text here</h4>
 <div id="target" contenteditable="true"></div>
 
 <script src="main.js"></script>
